@@ -1,1 +1,1 @@
-web: gunicorn image-process
+web: gunicorn app:app
