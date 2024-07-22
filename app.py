@@ -1,9 +1,7 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request
 import cv2
 import numpy as np
-from io import BytesIO
 import base64
-from skimage.metrics import structural_similarity
 import os
 
 app = Flask(__name__)
@@ -12,33 +10,33 @@ def compare_images(img1, img2):
     img1 = cv2.resize(img1, (500, 500))
     img2 = cv2.resize(img2, (500, 500))
     
-    # Renk farklılıklarını da dikkate al
+    # Consider color differences
     diff = cv2.absdiff(img1, img2)
     
-    # Gri tonlamaya dönüştür
+    # Convert to grayscale
     gray_diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
     
-    # Eşik değerini düşür
+    # Lower the threshold
     threshold = 20
     _, thresh = cv2.threshold(gray_diff, threshold, 255, cv2.THRESH_BINARY)
     
-    # Gürültüyü azalt
+    # Reduce noise
     kernel = np.ones((3,3), np.uint8)
     thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
     
-    # Farklılıkları işaretle
+    # Mark differences
     diff_mask = thresh > 0
-    img1[diff_mask] = [0, 0, 255]  # Kırmızı ile işaretle
+    img1[diff_mask] = [0, 0, 255]  # Mark with red
     
-    # Konturları çiz
+    # Draw contours
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(img1, contours, -1, (0, 255, 0), 1)  # Yeşil konturlar, ince çizgi
+    cv2.drawContours(img1, contours, -1, (0, 255, 0), 1)  # Green contours, thin line
     
     _, buffer = cv2.imencode('.jpg', img1)
     result_image = base64.b64encode(buffer).decode('utf-8')
     
     diff_pixel_count = np.sum(diff_mask)
-    result_text = f"Resimler {'aynı' if diff_pixel_count == 0 else 'farklı'}. Farklı piksel sayısı: {diff_pixel_count}"
+    result_text = f"Images are {'the same' if diff_pixel_count == 0 else 'different'}. Different pixel count: {diff_pixel_count}"
     
     return result_image, result_text
 
@@ -46,15 +44,15 @@ def compare_images(img1, img2):
 def index():
     if request.method == 'POST':
         if 'img1' not in request.files or 'img2' not in request.files:
-            return "Hata: Dosyalar yüklenmedi", 400
+            return "Error: Files not uploaded", 400
         
         file1 = request.files['img1']
         file2 = request.files['img2']
         
         if file1.filename == '' or file2.filename == '':
-            return "Hata: Dosya seçilmedi", 400
+            return "Error: No file selected", 400
         
-        # Dosyaları oku ve OpenCV formatına dönüştür
+        # Read files and convert to OpenCV format
         img1_bytes = file1.read()
         img2_bytes = file2.read()
         img1 = cv2.imdecode(np.frombuffer(img1_bytes, np.uint8), cv2.IMREAD_COLOR)
